@@ -5,7 +5,16 @@ get_filename_component(PROJECT ${FILENAME} NAME_WE) #automatically sets project 
 message(STATUS "Project name is ${PROJECT}")
 project (${PROJECT})
 
-find_path(SC_PATH NAMES plugin_interface/FFT_UGens.h PATH_SUFFIXES SuperCollider)
+find_library(MAPPER_LIB mapper)
+if(NOT MAPPER_LIB)
+  message(FATAL_ERROR "mapper library not found")
+endif()
+
+if (APPLE)
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
+endif()
+
+find_path(SC_PATH NAMES plugin_interface/SC_PlugIn.h PATH_SUFFIXES SuperCollider)
 if(NOT SC_PATH)
     set(SC_PATH supercollider)
     message("Using submodule, make sure that this repository is cloned with the --recursive option")
@@ -13,16 +22,51 @@ else()
     message("Found SuperCollider headers: ${SC_PATH}")
 endif()
 
-include_directories(${SC_PATH}/common)
 include_directories(${SC_PATH}/plugin_interface)
+include_directories(${SC_PATH}/server/plugins)
 include_directories(${SC_PATH}/include/plugin_interface)
 include_directories(${SC_PATH}/include/common)
-include_directories(${SC_PATH}/server/plugins) # for FFT_UGens.h
+include_directories(${SC_PATH}/common)
+
+
+include_directories(/usr/local/include)
+
+if (CMAKE_SYSTEM_NAME MATCHES "Linux|.*BSD|DragonFly")
+    set(INSTALL_DESTINATION "lib/SuperCollider/plugins")
+    if (QUARKS)
+        set(INSTALL_DESTINATION_DISTRO
+                "share/SuperCollider/${PROJECT}")
+    else()
+        set(INSTALL_DESTINATION_DISTRO
+                "share/SuperCollider/Extensions/${PROJECT}")
+    endif(QUARKS)
+else()
+    set(INSTALL_DESTINATION "${PROJECT}")
+    set(INSTALL_DESTINATION_DISTRO "${PROJECT}")
+endif()
+
+set(PLUGIN_DIR "plugins")
 
 set(CMAKE_SHARED_MODULE_PREFIX "")
 if(APPLE OR WIN32)
 set(CMAKE_SHARED_MODULE_SUFFIX ".scx")
 endif()
+
+option(SUPERNOVA "Build plugins for supernova" OFF)
+
+option(CPP11 "Build with c++11." ON)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(CMAKE_COMPILER_IS_CLANG 1)
+endif()
+
+# The below monstrosity sets compiler flags for SSE (Streaming SIMD Extensions). Among many other things, SSE protects
+# against denormal numbers, which are known to cause glitchy audio in some cases.
+
+# Some processors do not support SSE and will produce errors if you try to add SSE flags, so we also have to introduce
+# conditional logic to guard against those errors.
+
+# It's a real mess, and generally there's no need to touch it :)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANG)
     add_definitions(-fvisibility=hidden)
@@ -70,5 +114,26 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANG)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
     endif()
 endif()
+if(MINGW)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mstackrealign")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mstackrealign")
+endif()
 
 add_library(${PROJECT} MODULE ${FILENAME})
+target_link_libraries(${PROJECT} ${MAPPER_LIB})
+
+if(SUPERNOVA)
+    add_library(${PROJECT}_supernova MODULE ${FILENAME})
+    target_link_libraries(${PROJECT}_supernova ${MAPPER_LIB})
+    set_property(TARGET ${PROJECT}_supernova
+                 PROPERTY COMPILE_DEFINITIONS SUPERNOVA)
+    install(TARGETS ${PROJECT}_supernova
+            DESTINATION ${INSTALL_DESTINATION}/${PLUGIN_DIR})
+endif()
+
+
+install(TARGETS ${PROJECT}
+        DESTINATION ${INSTALL_DESTINATION}/${PLUGIN_DIR})
+
+install(DIRECTORY "sc/" DESTINATION "${INSTALL_DESTINATION_DISTRO}"
+        PATTERN "*")
