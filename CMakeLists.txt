@@ -5,11 +5,6 @@ get_filename_component(PROJECT ${FILENAME} NAME_WE) #automatically sets project 
 message(STATUS "Project name is ${PROJECT}")
 project (${PROJECT})
 
-find_library(MAPPER_LIB mapper)
-if(NOT MAPPER_LIB)
-  message(FATAL_ERROR "mapper library not found")
-endif()
-
 if (APPLE)
   set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
 endif()
@@ -28,21 +23,16 @@ include_directories(${SC_PATH}/include/plugin_interface)
 include_directories(${SC_PATH}/include/common)
 include_directories(${SC_PATH}/common)
 
-
 include_directories(/usr/local/include)
 
-if (CMAKE_SYSTEM_NAME MATCHES "Linux|.*BSD|DragonFly")
-    set(INSTALL_DESTINATION "lib/SuperCollider/plugins")
-    if (QUARKS)
-        set(INSTALL_DESTINATION_DISTRO
-                "share/SuperCollider/${PROJECT}")
-    else()
-        set(INSTALL_DESTINATION_DISTRO
-                "share/SuperCollider/Extensions/${PROJECT}")
-    endif(QUARKS)
+message("path: " "${PLUGINS_DIR}/${PROJECT}")
+
+if (PLUGINS_DIR)
+    set(INSTALL_DESTINATION "${PLUGINS_DIR}/${PROJECT}")
+    set(INSTALL_DESTINATION_DISTRO "${PLUGINS_DIR}/${PROJECT}")
 else()
-    set(INSTALL_DESTINATION "${PROJECT}")
-    set(INSTALL_DESTINATION_DISTRO "${PROJECT}")
+    set(INSTALL_DESTINATION "${CMAKE_BINARY_DIR}/${PROJECT}")
+    set(INSTALL_DESTINATION_DISTRO "${CMAKE_BINARY_DIR}/${PROJECT}")
 endif()
 
 set(PLUGIN_DIR "plugins")
@@ -120,7 +110,6 @@ if(MINGW)
 endif()
 
 add_library(${PROJECT} MODULE ${FILENAME})
-target_link_libraries(${PROJECT} ${MAPPER_LIB})
 
 if(SUPERNOVA)
     add_library(${PROJECT}_supernova MODULE ${FILENAME})

@@ -3,7 +3,7 @@ summary:: Randomizes phase
 categories:: UGens>FFT
 
 DESCRIPTION::
-Randomizes phase
+Randomizes phase of each bin in the FFT.
 
 CLASSMETHODS::
 private:: categories
@@ -11,13 +11,14 @@ private:: categories
 EXAMPLES::
 code::
 (
-x = {
+// Spectral reverb
+{
   var sig, chain;
-  sig = SinOsc.ar(200 * Duty.kr(0.25, 0, Diwhite(1, 8)));
-  chain = FFT(LocalBuf(2048), sig);
-  chain = PV_MagSmooth(chain, 0.99);
+  sig = SinOsc.ar(200 * Duty.kr(0.25, 0, Diwhite(1, 8))) * 0.5;
+  chain = FFT(LocalBuf(8192), sig);
+  chain = PV_MagSmooth(chain, 0.9);
   chain = PV_RandPhase(chain);
-  IFFT(chain).dup * 0.1
+  sig + (IFFT(chain).dup * 0.5)
 }.play;
 )
 ::
